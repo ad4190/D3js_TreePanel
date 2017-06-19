@@ -1,0 +1,31 @@
+html {
+  font: 14px sans-serif;
+}
+body{
+    display: flex;
+    border: 12px solid #0099ff;
+}
+svg {
+  flex:1;
+  border-right: 6px solid #0099ff;
+}
+#container{
+  flex:0 0 30%;
+  padding:10px;
+  border-left: 6px solid #0099ff;
+}
+
+.node {
+  cursor: pointer;
+}
+
+.node circle {
+  stroke: #0099ff;
+  stroke-width: 1.5px;
+}
+
+.link {
+  fill: none;
+  stroke: lightgray;
+  stroke-width: 1.5px;
+}

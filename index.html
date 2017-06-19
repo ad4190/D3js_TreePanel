@@ -1,0 +1,359 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>customers</title>
+    <link rel="stylesheet" href="styles/kendo.common.min.css" />
+    <link rel="stylesheet" href="styles/kendo.default.min.css" />
+    <link rel="stylesheet" href="styles/kendo.default.mobile.min.css" />
+    <link rel="stylesheet" href="css/style.css">
+
+    <script src="js/jquery.min.js"></script>
+    <script src="js/kendo.all.min.js"></script>
+    <script src="http://d3js.org/d3.v3.min.js"></script>
+</head>
+<body>
+    <script>
+    var json = {
+	"name": "customers 85k",
+	"children": [{
+			"name": "segments",
+			"children": [{
+					"name": "Young City Solos 35k"
+				},
+				{
+					"name": "Power Elite 30k"
+				},
+				{
+					"name": "Suburban Style 20k"
+				},
+				{
+					"name": "Significant Singles 35k"
+				},
+				{
+					"name": "Thriving Boomers 30k"
+				},
+				{
+					"name": "Flourishing Families 20k"
+				}
+			]
+		}, {
+			"name": "years 3+"
+		},
+		{
+			"name": "lifetime value high"
+		},
+		{
+			"name": "sentiment positive"
+		},
+		{
+			"name": "influence high"
+		},
+		{
+			"name": "related",
+			"children": [{
+				"name": "Brand Sentiment"
+			}, {
+				"name": "Campaigns"
+			}, {
+				"name": "Browsing Behavior"
+			}]
+		}
+	]
+};
+
+    var width = 700;
+    var height = 650;
+    var maxLabel = 150;
+    var duration = 500;
+    var radius = 5;
+
+    var i = 0;
+    var root;
+
+    var tree = d3.layout.tree()
+    .size([height, width]);
+
+    var lineFunction = d3.svg.line()
+    .x(function(d) {
+        return d.x;
+    })
+    .y(function(d) {
+        return d.y;
+    })
+    .interpolate("linear");
+
+    var svg = d3.select("body").append("svg")
+    .attr("width", width)
+    .attr("height", height)
+    .append("g")
+    .attr("transform", "translate(" + maxLabel + ",0)");
+
+    root = json;
+    root.x0 = height / 2;
+    root.y0 = 0;
+
+    root.children.forEach(collapse);
+
+    function update(source) {
+    // Compute the new tree layout.
+    var nodes = tree.nodes(root).reverse();
+    var links = tree.links(nodes);
+
+    // Normalize for fixed-depth.
+    nodes.forEach(function(d) {
+        d.y = d.depth * maxLabel;
+    });
+
+    // Update the nodes…
+    var node = svg.selectAll("g.node")
+        .data(nodes, function(d) {
+        return d.id ||(d.id = ++i);
+        });
+
+
+    // Update the links…
+    var link = svg.selectAll(".link")
+        .data(links)
+
+
+    // Enter any new links at the parent's previous position.
+    link.enter().append("line")
+        .attr("class", "link")
+        .attr("x1", function(d) {
+        return d.source.y;
+        })
+        .attr("y1", function(d) {
+        return d.source.x;
+        })
+        .attr("x2", function(d) {
+        return d.target.y;
+        })
+        .attr("y2", function(d) {
+        return d.target.x;
+        });
+
+    // Transition links to their new position.
+    link.transition()
+        .duration(duration)
+        .attr("d", lineFunction)
+        .attr("x1", function(d) {
+        return d.source.y;
+        })
+        .attr("y1", function(d) {
+        return d.source.x;
+        })
+        .attr("x2", function(d) {
+        return d.target.y;
+        })
+        .attr("y2", function(d) {
+        return d.target.x;
+        });;
+
+    // Transition exiting nodes to the parent's new position.
+    link.exit()
+        .remove();
+    // Enter any new nodes at the parent's previous position.
+    var nodeEnter = node.enter()
+        .append("g")
+        .attr("class", "node")
+        .attr("transform", function(d) {
+        return "translate(" + source.y0 + "," + source.x0 + ")";
+        })
+        .on("click", click);
+
+    nodeEnter.append("circle")
+        .attr("r", 0)
+        .style("fill", function(d) {
+        return d._children ? "lightsteelblue" : "white";
+        });
+
+    nodeEnter.append("text")
+        .attr("x", function(d) {
+        var spacing = computeRadius(d) + 5;
+        return d.children || d._children ? -spacing : spacing;
+        })
+        .attr("dy", "3")
+        .attr("text-anchor", function(d) {
+        return d.children || d._children ? "end" : "start";
+        })
+        .text(function(d) {
+        return d.name;
+        })
+        .style("fill-opacity", 0);
+
+    // Transition nodes to their new position.
+    var nodeUpdate = node.transition()
+        .duration(duration)
+        .attr("transform", function(d) {
+        return "translate(" + d.y + "," + d.x + ")";
+        });
+
+    nodeUpdate.select("circle")
+        .attr("r", function(d) {
+        return computeRadius(d);
+        })
+        .style("fill", function(d) {
+        return d._children ? "lightsteelblue" : "#fff";
+        });
+
+    nodeUpdate.select("text").style("fill-opacity", 1);
+
+    // Transition exiting nodes to the parent's new position.
+    var nodeExit = node.exit().transition()
+        .duration(duration)
+        .attr("transform", function(d) {
+        return "translate(" + source.y + "," + source.x + ")";
+        })
+        .remove();
+
+    nodeExit.select("circle").attr("r", 0);
+    nodeExit.select("text").style("fill-opacity", 0);
+
+    // Stash the old positions for transition.
+    nodes.forEach(function(d) {
+        d.x0 = d.x;
+        d.y0 = d.y;
+    });
+    }
+
+    function computeRadius(d) {
+    if (d.children || d._children) return radius + (radius * nbEndNodes(d) / 10);
+    else return radius;
+    }
+
+    function nbEndNodes(n) {
+    nb = 0;
+    if (n.children) {
+        n.children.forEach(function(c) {
+        nb += nbEndNodes(c);
+        });
+    } else if (n._children) {
+        n._children.forEach(function(c) {
+        nb += nbEndNodes(c);
+        });
+    } else nb++;
+
+    return nb;
+    }
+
+    function click(d) {
+    if (d.children) {
+        d._children = d.children;
+        d.children = null;
+    } else {
+        d.children = d._children;
+        d._children = null;
+    }
+    update(d);
+    }
+
+    function collapse(d) {
+    if (d.children) {
+        d._children = d.children;
+        d._children.forEach(collapse);
+        d.children = null;
+    }
+    }
+
+    update(root);
+
+    </script>
+    <div id="container">
+    <div id="example">
+        <div class="demo-section k-content">
+            <div>
+                <h4>Check nodes</h4>
+                <div id="treeview"></div>
+            </div>
+            <div style="padding-top: 2em;">
+                <h4>Status</h4>
+                <p id="result">No nodes checked.</p>
+            </div>
+        </div>
+</div>
+<script>
+$("#treeview").kendoTreeView({
+    checkboxes: {
+        checkChildren: true
+    },
+
+    check: onCheck,
+
+    dataSource: [{
+        id: 7, text: "customers 85k", expanded: true, spriteCssClass: "rootfolder", items: [
+            {
+                id: 6, text: "segments", expanded: true, spriteCssClass: "folder", items: [
+                    { id: 13, text: "Young City Solos 35k", spriteCssClass: "html" },
+                    { id: 12, text: "Power Elite 30k", spriteCssClass: "html" },
+                    { id: 11, text: "Suburban Style 20k", spriteCssClass: "image" },
+                    { id: 10, text: "Significant Singles 35k", spriteCssClass: "image" },
+                    { id: 9, text: "Thriving Boomers 30k", spriteCssClass: "image" },
+                    { id: 8, text: "Flourishing Families 20k", spriteCssClass: "image" },
+                ]
+            },
+            {
+                id: 5, text: "years 3+", expanded: true, spriteCssClass: "folder",
+            },
+            {
+                id: 4, text: "lifetime value high", expanded: true, spriteCssClass: "folder",
+            },
+            {
+                id: 3, text: "sentiment positive", expanded: true, spriteCssClass: "folder",
+            },
+            {
+                id: 2, text: "influence high", expanded: true, spriteCssClass: "folder",
+            },
+            {
+                id: 1, text: "related", expanded: true, spriteCssClass: "folder", items: [
+                    { id: 16, text: "Brand Sentiment", spriteCssClass: "pdf" },
+                    { id: 15, text: "Campaigns", spriteCssClass: "pdf" },
+                    { id: 14, text: "Browsing Behavior", spriteCssClass: "pdf" }
+                ]
+            }
+        ]
+    }]
+});
+
+// function that gathers IDs of checked nodes
+function checkedNodeIds(nodes, checkedNodes) {
+    for (var i = 0; i < nodes.length; i++) {
+        if (nodes[i].checked) {
+            checkedNodes.push(nodes[i].id);
+        }
+
+        if (nodes[i].hasChildren) {
+            checkedNodeIds(nodes[i].children.view(), checkedNodes);
+        }
+    }
+}
+
+// show checked node IDs on datasource change
+function onCheck() {
+    var checkedNodes = [],
+        treeView = $("#treeview").data("kendoTreeView"),
+        message;
+
+    checkedNodeIds(treeView.dataSource.view(), checkedNodes);
+
+    if (checkedNodes.length > 0) {
+        message = "IDs of checked nodes: " + checkedNodes.join(",");
+    } else {
+        message = "No nodes checked.";
+    }
+
+    $("#result").html(message);
+    if(checkedNodes[0]==7){
+        
+        click(root.children[0]);
+        click(root.children[5]);
+        }
+    else if(checkedNodes[0]==1){
+        click(root.children[5]);
+    } 
+    else if(checkedNodes[0]==6){
+        click(root.children[0]);
+    }
+}
+</script>
+</body>
+</html>
